@@ -70,6 +70,7 @@ class AbstractCar():
 class PlayerCar(AbstractCar):
     IMG = RED_CAR
     START_POS = (180, 200)
+    bounce_factor = 1.0
 
     def reduce_speed(self):
         self.vel = max(self.vel - self.acceleration / 2, 0)
@@ -146,39 +147,71 @@ class ComputerCar(AbstractCar):
         self.started = False
         self.vel = self.max_vel
 
-def start_screen(win, images):
-    title_text = MAIN_FONT.render("Racing Game!", True, (255, 255, 255))
-    prompt_text = MAIN_FONT.render("Press SPACE to start", True, (255, 255, 255))
-
-    overlay = pygame.Surface((WIDTH, HEIGHT))
-    overlay.fill((0, 0, 0))
-    overlay.set_alpha(200)
-
-    waiting = True
-    while waiting:
-        for img, pos in images:
-            win.blit(img, pos)
-
-        win.blit(overlay, (0, 0))
-
-        win.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, HEIGHT // 2 - 100))
-        win.blit(prompt_text, (WIDTH // 2 - prompt_text.get_width() // 2, HEIGHT // 2))
-        pygame.display.update()
-
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                pygame.quit()
-                quit()
-            if event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE:
-                waiting = False
-
-def draw_buttton(win, rect, text, base_color, hover_color):
+def draw_button(win, rect, text, base_color, hover_color):
     mouse_pos = pygame.mouse.get_pos()
     color = hover_color if rect.collidepoint(mouse_pos) else base_color
     pygame.draw.rect(win, color, rect, border_radius=10)
     label = MAIN_FONT.render(text, True, (255, 255, 255))
     win.blit(label, (rect.centerx - label.get_width() // 2, rect.centery - label.get_height() // 2))
 
+def draW_stepper(win, label, value, value_fmt, rect, minus_rect, plus_rect):
+    label_text = MAIN_FONT.render(label, True, (255, 255, 255))
+    win.blit(label_text, (rect.left, rect.top - 35))
+
+    draw_button(win, minus_rect, '-', (70, 70, 70), (110, 110, 110))
+    draw(win, plus_rect, '+', (70, 70, 70), (110, 110, 110))
+
+    value_text = MAIN_FONT.render(value_fmt.format(value), True, (255, 255, 255))
+    win.blit(value_text, (rect.centerx - value_text.get_width() // 2, rect.centery - value_text.get_height() // 2))
+
+def level_select_screen(win, images):
+    title_text = MAIN_FONT.render("Select Difficulty", True, (255, 255, 255))
+    hint_font = pygame.font.SysFont("comicsans", 24)
+    hint_text = hint_font.render('Use WASD or Arrow Keys to drive', True, (200, 200, 200))
+
+    overlay = pygame.Surface((WIDTH, HEIGHT))
+    overlay.fill((0, 0, 0))
+    overlay.set_alpha(200)
+
+    button_width, button_height, spacing = 220, 60, 20
+    total_height = button_height * 3 + spacing * 2
+    start_y = HEIGHT // 2 - total_height // 2 + 20
+
+    easy_rect = pygame.Rect(0, 0, button_width, button_height)
+    easy_rect.center = (WIDTH // 2, start_y)
+    medium_rect = pygame.Rect(0, 0, button_width, button_height)
+    medium_rect.center = (WIDTH // 2, start_y + button_height + spacing)
+    hard_rect = pygame.Rect(0, 0, button_width, button_height)
+    hard_rect.center = (WIDTH // 2, start_y + 2 * (button_height + spacing))
+
+    levels = [
+        ('Easy', 3, easy_rect),
+        ('Medium', 4.5, medium_rect),
+        ('Hard', 6, hard_rect)
+    ]
+
+    waiting = True
+    while waiting: 
+        for img, pos in images:
+            win.blit(img, pos)
+
+        win.blit(overlay, (0, 0))
+        win.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, start_y - 100))
+
+        for label, speed, rect in levels:
+            draw_button(win, rect, label, (70, 70, 70), (110, 110, 110))
+
+        win.blit(hint_text, (WIDTH // 2 - hint_text.get_width() // 2, hard_rect.bottom + 30))
+        pygame.display.update()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                quit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                for label, speed, rect in levels:
+                    if rect.collidepoint(event.pos):
+                        return speed
 
 def end_screen(win, images, won):
     message = "You Win!" if won else "Too Slow!"
@@ -198,7 +231,7 @@ def end_screen(win, images, won):
 
         win.blit(overlay, (0, 0))
         win.blit(result_text, (WIDTH // 2 - result_text.get_width() // 2, HEIGHT // 2 - 60))
-        draw_buttton(win, button_rect, "Restart", (70, 70, 70), (110, 110, 110))
+        draw_button(win, button_rect, "Restart", (70, 70, 70), (110, 110, 110))
         pygame.display.update()
 
         for event in pygame.event.get():
@@ -256,38 +289,40 @@ run = True
 clock = pygame.time.Clock()
 images = [(GRASS, (0, 0)), (TRACK, (0,0)), (FINISH, FINISH_POSITION), (TRACK_BORDER, (0, 0))]
 player_car = PlayerCar(4, 4)
-computer_car = ComputerCar(4, 4, PATH)
 # path up 
 
-start_screen(WIN, images)
-
 while run:
-    clock.tick(FPS)
+    computer_speed = level_select_screen(WIN, images)
+    computer_car = ComputerCar(computer_speed, 4, PATH)
+    player_car.reset()
 
-    draw(WIN, images, player_car, computer_car)
+    playing = True
 
-    
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            run = False
+    while playing:
+        clock.tick(FPS)
+
+        draw(WIN, images, player_car, computer_car)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                run = False
+                playing = False
+                break
+
+        if not run:
             break
 
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            pos = pygame.mouse.get_pos()
-            computer_car.path.append(pos)
+        move_player(player_car)
 
-    move_player(player_car)
+        if player_car.vel > 0 and not computer_car.started:
+            computer_car.start()
 
-    if player_car.vel > 0 and not computer_car.started:
-        computer_car.start()
-    
-    computer_car.move()
-    result = handle_collision(player_car, computer_car)
+        computer_car.move()
+        result = handle_collision(player_car, computer_car)
 
-    if result is not None:
-        end_screen(WIN, images, won=(result == "win"))
-        player_car.reset()
-        computer_car.reset()
+        if result is not None: 
+            end_screen(WIN, images, won=(result == 'win'))
+            player = False
 
 # print(computer_car.path)
 pygame.quit()
