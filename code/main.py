@@ -154,17 +154,77 @@ def draw_button(win, rect, text, base_color, hover_color):
     label = MAIN_FONT.render(text, True, (255, 255, 255))
     win.blit(label, (rect.centerx - label.get_width() // 2, rect.centery - label.get_height() // 2))
 
-def draW_stepper(win, label, value, value_fmt, rect, minus_rect, plus_rect):
+def draw_stepper(win, label, value, value_fmt, rect, minus_rect, plus_rect):
     label_text = MAIN_FONT.render(label, True, (255, 255, 255))
     win.blit(label_text, (rect.left, rect.top - 35))
 
     draw_button(win, minus_rect, '-', (70, 70, 70), (110, 110, 110))
-    draw(win, plus_rect, '+', (70, 70, 70), (110, 110, 110))
+    draw_button(win, plus_rect, '+', (70, 70, 70), (110, 110, 110))
 
     value_text = MAIN_FONT.render(value_fmt.format(value), True, (255, 255, 255))
     win.blit(value_text, (rect.centerx - value_text.get_width() // 2, rect.centery - value_text.get_height() // 2))
 
-def level_select_screen(win, images):
+def settings_screen(win, images, player_speed, bounce_factor):
+    title_text = MAIN_FONT.render("Settings", True, (255, 255, 255))
+
+    overlay = pygame.Surface((WIDTH, HEIGHT))
+    overlay.fill((0, 0, 0))
+    overlay.set_alpha(200)
+
+    speed_min, speed_max, speed_step = 2.0, 10.0, 0.5
+    bounce_min, bounce_max, bounce_step = 0.2, 2.0, 0.1
+
+    speed_row_y = HEIGHT // 2 - 80
+    bounce_row_y = HEIGHT // 2
+
+    speed_value_rect = pygame.Rect(0, 0, 100, 40)
+    speed_value_rect.center = (WIDTH // 2, speed_row_y)
+    speed_minus_rect = pygame.Rect(0, 0, 40, 40)
+    speed_minus_rect.center = (speed_value_rect.left - 40, speed_row_y)
+    speed_plus_rect = pygame.Rect(0, 0, 40, 40)
+    speed_plus_rect.center = (speed_value_rect.right + 40, speed_row_y)
+
+    bounce_value_rect = pygame.Rect(0, 0, 100, 40)
+    bounce_value_rect.center = (WIDTH // 2, bounce_row_y)
+    bounce_minus_rect = pygame.Rect(0, 0, 40, 40)
+    bounce_minus_rect.center = (bounce_value_rect. left - 40, bounce_row_y)
+    bounce_plus_rect = pygame.Rect(0, 0, 40, 40)
+    bounce_plus_rect.center = (bounce_value_rect.right + 40, bounce_row_y)
+
+    back_rect = pygame.Rect(0, 0, 220, 60)
+    back_rect.center = (WIDTH // 2, bounce_row_y + 120)
+
+    waiting = True
+    while waiting:
+        for img, pos in images:
+            win.blit(img, pos)
+
+        win.blit(overlay, (0, 0))
+        win.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, speed_row_y - 100))
+
+        draw_stepper(win, "Your Top Speed", player_speed, "{:.1f}", speed_value_rect, speed_minus_rect, speed_plus_rect)
+        draw_stepper(win, "Wall Bounciness", bounce_factor, "{:.1f}", bounce_value_rect, bounce_minus_rect, bounce_plus_rect)
+
+        draw_button(win, back_rect, "Back", (70, 70, 70), (110, 110, 110))
+        pygame.display.update()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                quit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if speed_minus_rect.collidepoint(event.pos):
+                    player_speed = max(speed_min, round(player_speed - speed_step, 1))
+                elif speed_plus_rect.collidepoint(event.pos):
+                    player_speed = min(speed_max, round(player_speed + speed_step, 1))
+                elif bounce_minus_rect.collidepoint(event.pos):
+                    bounce_factor = max(bounce_min, round(bounce_factor - bounce_step, 1))
+                elif bounce_plus_rect.collidepoint(event.pos):
+                    bounce_factor = min(bounce_max, round(bounce_factor + bounce_step, 1))
+                elif back_rect.collidepoint(event.pos):
+                    waiting = False
+
+def level_select_screen(win, images, player_speed, bounce_factor):
     title_text = MAIN_FONT.render("Select Difficulty", True, (255, 255, 255))
     hint_font = pygame.font.SysFont("comicsans", 24)
     hint_text = hint_font.render('Use WASD or Arrow Keys to drive', True, (200, 200, 200))
@@ -184,6 +244,9 @@ def level_select_screen(win, images):
     hard_rect = pygame.Rect(0, 0, button_width, button_height)
     hard_rect.center = (WIDTH // 2, start_y + 2 * (button_height + spacing))
 
+    settings_rect = pygame.Rect(0, 0, button_width, button_height)
+    settings_rect.center = (WIDTH // 2, hard_rect.bottom + spacing + button_height // 2)
+
     levels = [
         ('Easy', 3, easy_rect),
         ('Medium', 4.5, medium_rect),
@@ -201,7 +264,9 @@ def level_select_screen(win, images):
         for label, speed, rect in levels:
             draw_button(win, rect, label, (70, 70, 70), (110, 110, 110))
 
-        win.blit(hint_text, (WIDTH // 2 - hint_text.get_width() // 2, hard_rect.bottom + 30))
+        draw_button(win, settings_rect, "Settings", (60, 60, 90), (90, 90, 130))
+
+        win.blit(hint_text, (WIDTH // 2 - hint_text.get_width() // 2, hard_rect.bottom + 100))
         pygame.display.update()
 
         for event in pygame.event.get():
@@ -209,9 +274,12 @@ def level_select_screen(win, images):
                 pygame.quit()
                 quit()
             if event.type == pygame.MOUSEBUTTONDOWN:
-                for label, speed, rect in levels:
-                    if rect.collidepoint(event.pos):
-                        return speed
+                if settings_rect.collidepoint(event.pos):
+                    player_speed, bounce_factor = settings_screen(win, images, player_speed, bounce_factor)
+                else:
+                    for label, speed, rect in levels:
+                        if rect.collidepoint(event.pos):
+                            return speed, player_speed, bounce_factor
 
 def end_screen(win, images, won):
     message = "You Win!" if won else "Too Slow!"
@@ -289,12 +357,15 @@ run = True
 clock = pygame.time.Clock()
 images = [(GRASS, (0, 0)), (TRACK, (0,0)), (FINISH, FINISH_POSITION), (TRACK_BORDER, (0, 0))]
 player_car = PlayerCar(4, 4)
+player_speed = 4.0
+bounce_factor = 1.0
 # path up 
 
 while run:
-    computer_speed = level_select_screen(WIN, images)
+    computer_speed, player_speed, bounce_factor = level_select_screen(WIN, images, player_speed, bounce_factor)
+    player_car = PlayerCar(player_speed, 4)
+    player_car.bounce_factor = bounce_factor
     computer_car = ComputerCar(computer_speed, 4, PATH)
-    player_car.reset()
 
     playing = True
 
@@ -322,7 +393,10 @@ while run:
 
         if result is not None: 
             end_screen(WIN, images, won=(result == 'win'))
-            player = False
+            playing = False
 
 # print(computer_car.path)
 pygame.quit()
+
+
+# Click into settings and fix the messed up layout
