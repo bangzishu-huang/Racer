@@ -156,7 +156,7 @@ def draw_button(win, rect, text, base_color, hover_color):
 
 def draw_stepper(win, label, value, value_fmt, rect, minus_rect, plus_rect):
     label_text = MAIN_FONT.render(label, True, (255, 255, 255))
-    win.blit(label_text, (rect.left, rect.top - 35))
+    win.blit(label_text, (WIDTH // 2 - label_text.get_width() // 2, rect.top - 55))
 
     draw_button(win, minus_rect, '-', (70, 70, 70), (110, 110, 110))
     draw_button(win, plus_rect, '+', (70, 70, 70), (110, 110, 110))
@@ -174,8 +174,8 @@ def settings_screen(win, images, player_speed, bounce_factor):
     speed_min, speed_max, speed_step = 2.0, 10.0, 0.5
     bounce_min, bounce_max, bounce_step = 0.2, 2.0, 0.1
 
-    speed_row_y = HEIGHT // 2 - 80
-    bounce_row_y = HEIGHT // 2
+    speed_row_y = HEIGHT // 2 - 140
+    bounce_row_y = HEIGHT // 2 - 20
 
     speed_value_rect = pygame.Rect(0, 0, 100, 40)
     speed_value_rect.center = (WIDTH // 2, speed_row_y)
@@ -192,7 +192,7 @@ def settings_screen(win, images, player_speed, bounce_factor):
     bounce_plus_rect.center = (bounce_value_rect.right + 40, bounce_row_y)
 
     back_rect = pygame.Rect(0, 0, 220, 60)
-    back_rect.center = (WIDTH // 2, bounce_row_y + 120)
+    back_rect.center = (WIDTH // 2, bounce_row_y + 160)
 
     waiting = True
     while waiting:
@@ -200,7 +200,7 @@ def settings_screen(win, images, player_speed, bounce_factor):
             win.blit(img, pos)
 
         win.blit(overlay, (0, 0))
-        win.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, speed_row_y - 100))
+        win.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, speed_row_y - 160))
 
         draw_stepper(win, "Your Top Speed", player_speed, "{:.1f}", speed_value_rect, speed_minus_rect, speed_plus_rect)
         draw_stepper(win, "Wall Bounciness", bounce_factor, "{:.1f}", bounce_value_rect, bounce_minus_rect, bounce_plus_rect)
@@ -223,6 +223,7 @@ def settings_screen(win, images, player_speed, bounce_factor):
                     bounce_factor = min(bounce_max, round(bounce_factor + bounce_step, 1))
                 elif back_rect.collidepoint(event.pos):
                     waiting = False
+    return player_speed, bounce_factor 
 
 def level_select_screen(win, images, player_speed, bounce_factor):
     title_text = MAIN_FONT.render("Select Difficulty", True, (255, 255, 255))
@@ -248,9 +249,9 @@ def level_select_screen(win, images, player_speed, bounce_factor):
     settings_rect.center = (WIDTH // 2, hard_rect.bottom + spacing + button_height // 2)
 
     levels = [
-        ('Easy', 3, easy_rect),
-        ('Medium', 4.5, medium_rect),
-        ('Hard', 6, hard_rect)
+        ('Easy', 3, easy_rect, False),
+        ('Medium', 4.5, medium_rect, False),
+        ('Wonky', 6, hard_rect, True)
     ]
 
     waiting = True
@@ -261,7 +262,7 @@ def level_select_screen(win, images, player_speed, bounce_factor):
         win.blit(overlay, (0, 0))
         win.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, start_y - 100))
 
-        for label, speed, rect in levels:
+        for label, speed, rect, noclip in levels:
             draw_button(win, rect, label, (70, 70, 70), (110, 110, 110))
 
         draw_button(win, settings_rect, "Settings", (60, 60, 90), (90, 90, 130))
@@ -277,9 +278,9 @@ def level_select_screen(win, images, player_speed, bounce_factor):
                 if settings_rect.collidepoint(event.pos):
                     player_speed, bounce_factor = settings_screen(win, images, player_speed, bounce_factor)
                 else:
-                    for label, speed, rect in levels:
+                    for label, speed, rect, noclip in levels:
                         if rect.collidepoint(event.pos):
-                            return speed, player_speed, bounce_factor
+                            return speed, player_speed, bounce_factor, noclip
 
 def end_screen(win, images, won):
     message = "You Win!" if won else "Too Slow!"
@@ -335,8 +336,8 @@ def move_player(player_car):
 
     if not moved: player_car.reduce_speed()
 
-def handle_collision(player_car, computer_car):
-    if player_car.collide(TRACK_BORDER_MASK) != None:
+def handle_collision(player_car, computer_car, noclip = False):
+    if not noclip and player_car.collide(TRACK_BORDER_MASK) != None:
         player_car.bounce()
 
     computer_finish_poi_collide = computer_car.collide(FINISH_MASK, *FINISH_POSITION)
@@ -362,7 +363,7 @@ bounce_factor = 1.0
 # path up 
 
 while run:
-    computer_speed, player_speed, bounce_factor = level_select_screen(WIN, images, player_speed, bounce_factor)
+    computer_speed, player_speed, bounce_factor, noclip = level_select_screen(WIN, images, player_speed, bounce_factor)
     player_car = PlayerCar(player_speed, 4)
     player_car.bounce_factor = bounce_factor
     computer_car = ComputerCar(computer_speed, 4, PATH)
@@ -399,4 +400,4 @@ while run:
 pygame.quit()
 
 
-# Click into settings and fix the messed up layout
+# No clip isn't really working for the wonky option
