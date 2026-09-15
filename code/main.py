@@ -21,6 +21,8 @@ pygame.font.init()
 MAIN_FONT = pygame.font.SysFont("comicsans", 44)
 
 FPS = 60
+TOTAL_LAPS = 3
+LAP_COOLDOWN_FRAMES = 30
 PATH = [(176, 137), (148, 77), (65, 106), (61, 200), (60, 316), (59, 409), (71, 487), (125, 550), (179, 603), (241, 655), (310, 718), (382, 723), (409, 638), (420, 518), (492, 480), (590, 531), (596, 632), (624, 715), (707, 730), (741, 639), (738, 543), (737, 457), (725, 383), (619, 373), (533, 375), (447, 372), (392, 319), (425, 257), (500, 250), (571, 250), (641, 247), (717, 244), (746, 173), (723, 85), (640, 74), (536, 72), (445, 71), (364, 67), (291, 93), (284, 185), (284, 252), (281, 327), (272, 394), (218, 408), (163, 361), (152, 260), (152, 210)]
 
 class AbstractCar():
@@ -31,6 +33,8 @@ class AbstractCar():
         self.angle = 0
         self.x, self.y = self.START_POS
         self.acceleration = 0.1
+        self.laps = 0
+        self.lap_cooldown = 0
 
     def rotate(self, left = False, right = False):
         if left:
@@ -340,16 +344,27 @@ def handle_collision(player_car, computer_car, noclip = False):
     if not noclip and player_car.collide(TRACK_BORDER_MASK) != None:
         player_car.bounce()
 
+    if player_car.lap_cooldown > 0:
+        player_car.lap_cooldown -= 1
+    if computer_car.lap_cooldown > 0:
+        computer_car.lap_cooldown -= 1
+
     computer_finish_poi_collide = computer_car.collide(FINISH_MASK, *FINISH_POSITION)
-    if computer_finish_poi_collide != None:
-        return "lose"
+    if computer_finish_poi_collide != None and computer_car.lap_cooldonw == 0:
+        computer_car.laps += 1
+        computer_car.lap_coodown = LAP_COOLDOWN_FRAMES
+        if computer_car.laps >= TOTAL_LAPS:
+            return "lose"
 
     player_finish_poi_collide = player_car.collide(FINISH_MASK, *FINISH_POSITION)
     if player_finish_poi_collide != None:
         if player_finish_poi_collide[1] == 0:
             player_car.bounce()
-        else: 
-            return "win"
+        elif player_car.lap_cooldown == 0:
+            player_car.laps += 1
+            player_car.lap_cooldown = LAP_COOLDOWN_FRAMES
+            if player_car.laps >= TOTAL_LAPS:
+                return "win"
 
     return None
 
@@ -390,7 +405,7 @@ while run:
             computer_car.start()
 
         computer_car.move()
-        result = handle_collision(player_car, computer_car)
+        result = handle_collision(player_car, computer_car, noclip)
 
         if result is not None: 
             end_screen(WIN, images, won=(result == 'win'))
@@ -398,6 +413,3 @@ while run:
 
 # print(computer_car.path)
 pygame.quit()
-
-
-# No clip isn't really working for the wonky option
