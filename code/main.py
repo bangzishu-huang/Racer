@@ -19,9 +19,11 @@ pygame.display.set_caption("Racing Game!")
 
 pygame.font.init()
 MAIN_FONT = pygame.font.SysFont("comicsans", 44)
+LAP_FONT = pygame.font.SysFont("comicsans", 20)
+COUNTDOWN_FONT = pygame.font.SysFont("comicsans", 120)
 
 FPS = 60
-TOTAL_LAPS = 3
+TOTAL_LAPS = 1
 LAP_COOLDOWN_FRAMES = 30
 PATH = [(176, 137), (148, 77), (65, 106), (61, 200), (60, 316), (59, 409), (71, 487), (125, 550), (179, 603), (241, 655), (310, 718), (382, 723), (409, 638), (420, 518), (492, 480), (590, 531), (596, 632), (624, 715), (707, 730), (741, 639), (738, 543), (737, 457), (725, 383), (619, 373), (533, 375), (447, 372), (392, 319), (425, 257), (500, 250), (571, 250), (641, 247), (717, 244), (746, 173), (723, 85), (640, 74), (536, 72), (445, 71), (364, 67), (291, 93), (284, 185), (284, 252), (281, 327), (272, 394), (218, 408), (163, 361), (152, 260), (152, 210)]
 
@@ -35,6 +37,7 @@ class AbstractCar():
         self.acceleration = 0.1
         self.laps = 0
         self.lap_cooldown = 0
+        self.lap_start_time = 0
 
     def rotate(self, left = False, right = False):
         if left:
@@ -151,10 +154,30 @@ class ComputerCar(AbstractCar):
         self.started = False
         self.vel = self.max_vel
 
+def render_outlined_text(font, text, text_color, outline_color, outline_width=3):
+    base = font.render(text, True, text_color)
+    size = (base.get_width() + outline_width * 2, base.get_height() + outline_width * 2)
+    surface = pygame.Surface(size, pygame.SRCALPHA)
+
+    outline = font.render(text, True, outline_color)
+    for dx in range(-outline_width, outline_width + 1):
+        for dy in range(-outline_width, outline_width + 1):
+            if dx != 0 or dy != 0:
+                surface.blit(outline, (dx + outline_width, dy + outline_width))
+
+    surface.blit(base, (outline_width, outline_width))
+    return surface
+
+def format_time(ms):
+    minutes = ms // 60000
+    seconds = (ms % 60000) // 1000
+    millis = ms % 1000
+    return f"{minutes:02}.{seconds:02}.{millis:03}"
+
 def draw_button(win, rect, text, base_color, hover_color):
     mouse_pos = pygame.mouse.get_pos()
     color = hover_color if rect.collidepoint(mouse_pos) else base_color
-    pygame.draw.rect(win, color, rect, border_radius=10)
+    pygame.draw.rect(win, color, rect, border_radius=12)
     label = MAIN_FONT.render(text, True, (255, 255, 255))
     win.blit(label, (rect.centerx - label.get_width() // 2, rect.centery - label.get_height() // 2))
 
@@ -253,9 +276,9 @@ def level_select_screen(win, images, player_speed, bounce_factor):
     settings_rect.center = (WIDTH // 2, hard_rect.bottom + spacing + button_height // 2)
 
     levels = [
-        ('Easy', 3, easy_rect, False),
-        ('Medium', 4.5, medium_rect, False),
-        ('Wonky', 6, hard_rect, True)
+        ('Easy', 3, easy_rect, False, (40, 120, 40), (60, 160, 60)),
+        ('Medium', 4.5, medium_rect, False, (150, 140, 40), (190, 180, 60)),
+        ('Wonky', 6, hard_rect, True, (150, 40, 40), (190, 60, 60))
     ]
 
     waiting = True
@@ -266,8 +289,8 @@ def level_select_screen(win, images, player_speed, bounce_factor):
         win.blit(overlay, (0, 0))
         win.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, start_y - 100))
 
-        for label, speed, rect, noclip in levels:
-            draw_button(win, rect, label, (70, 70, 70), (110, 110, 110))
+        for label, speed, rect, noclip, base_color, hover_color in levels:
+            draw_button(win, rect, label, base_color, hover_color)
 
         draw_button(win, settings_rect, "Settings", (60, 60, 90), (90, 90, 130))
 
@@ -282,9 +305,36 @@ def level_select_screen(win, images, player_speed, bounce_factor):
                 if settings_rect.collidepoint(event.pos):
                     player_speed, bounce_factor = settings_screen(win, images, player_speed, bounce_factor)
                 else:
-                    for label, speed, rect, noclip in levels:
+                    for label, speed, rect, noclip, base_color, hover_color in levels:
                         if rect.collidepoint(event.pos):
                             return speed, player_speed, bounce_factor, noclip
+
+def countdown_screen(win, images, player_car, computer_car):
+    numbers = ["3", "2", "1", "GO!"]
+    clock = pygame.time.Clock()
+
+    for number in numbers:
+        text = render_outlined_text(COUNTDOWN_FONT, number, (255, 255, 255), (0, 0, 0), outline_width=4)
+        display_ms = 700
+        elapsed = 0
+
+        while elapsed < display_ms:
+            clock.tick(FPS)
+            elapsed += clock.get_time()
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    quit()
+
+            for img, pos in images:
+                win.blit(img, pos)
+
+            player_car.draw(win)
+            computer_car.draw(win)
+
+            win.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2))
+            pygame.display.update()
 
 def end_screen(win, images, won):
     message = "You Win!" if won else "Too Slow!"
@@ -321,6 +371,30 @@ def draw(win, images, player_car, computer_car):
 
     player_car.draw(win)
     computer_car.draw(win)
+
+    current_lap = min(player_car.laps + 1, TOTAL_LAPS)
+    lap_num_text = LAP_FONT.render(f"Lap {current_lap}/{TOTAL_LAPS}", True, (255, 255, 255))
+
+    elapsed_ms = pygame.time.get_ticks() - player_car.lap_start_time
+    time_text = LAP_FONT.render(f'Time: {format_time(elapsed_ms)}', True, (255, 255, 255))
+
+    lines = [lap_num_text, time_text]
+    padding = 6
+    line_spacing = 2
+
+    box_width = max(line.get_width() for line in lines) + padding * 2
+    box_height = sum(line.get_height() for line in lines) + padding * 2 + line_spacing * (len(lines) - 1)
+    box_rect = pygame.Rect(10, 10, box_width, box_height)
+
+    box_surface = pygame.Surface((box_rect.width, box_rect.height), pygame.SRCALPHA)
+    pygame.draw.rect(box_surface, (0, 0, 0, 150), box_surface.get_rect(), border_radius=12)
+    win.blit(box_surface, (box_rect.x, box_rect.y))
+
+    y = box_rect.y + padding
+    for line in lines:
+        win.blit(line, (box_rect.x + padding, y))
+        y += line.get_height() + line_spacing
+
     pygame.display.update()
      
 def move_player(player_car):
@@ -350,24 +424,21 @@ def handle_collision(player_car, computer_car, noclip = False):
         computer_car.lap_cooldown -= 1
 
     computer_finish_poi_collide = computer_car.collide(FINISH_MASK, *FINISH_POSITION)
-    if computer_finish_poi_collide != None and computer_car.lap_cooldonw == 0:
+    if computer_finish_poi_collide != None and computer_car.lap_cooldown == 0:
         computer_car.laps += 1
-        computer_car.lap_coodown = LAP_COOLDOWN_FRAMES
+        computer_car.lap_cooldown = LAP_COOLDOWN_FRAMES
         if computer_car.laps >= TOTAL_LAPS:
             return "lose"
 
     player_finish_poi_collide = player_car.collide(FINISH_MASK, *FINISH_POSITION)
-    if player_finish_poi_collide != None:
+    if player_finish_poi_collide != None and player_car.lap_cooldown == 0:
         if player_finish_poi_collide[1] == 0:
             player_car.bounce()
-        elif player_car.lap_cooldown == 0:
+        else:
             player_car.laps += 1
             player_car.lap_cooldown = LAP_COOLDOWN_FRAMES
             if player_car.laps >= TOTAL_LAPS:
                 return "win"
-
-    return None
-
 
 run = True
 clock = pygame.time.Clock()
@@ -382,6 +453,10 @@ while run:
     player_car = PlayerCar(player_speed, 4)
     player_car.bounce_factor = bounce_factor
     computer_car = ComputerCar(computer_speed, 4, PATH)
+
+    countdown_screen(WIN, images, player_car, computer_car)
+    computer_car.start()
+    player_car.lap_start_time = pygame.time.get_ticks()
 
     playing = True
 
@@ -400,10 +475,6 @@ while run:
             break
 
         move_player(player_car)
-
-        if player_car.vel > 0 and not computer_car.started:
-            computer_car.start()
-
         computer_car.move()
         result = handle_collision(player_car, computer_car, noclip)
 
