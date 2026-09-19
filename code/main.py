@@ -2,22 +2,22 @@ import pygame
 import time 
 import math
 from utils import scale_image, blit_rotate_center
+import asyncio
 
-GRASS = scale_image(pygame.image.load('code/images/grass.jpg'), 2.5)
-TRACK = scale_image(pygame.image.load('code/images/track.png'), 0.9)
-TRACK_BORDER = scale_image(pygame.image.load('code/images/track-border.png'), 0.9)
+pygame.init()
+
+GRASS = scale_image(pygame.image.load('./images/grass.jpg'), 2.5)
+TRACK = scale_image(pygame.image.load('./images/track.png'), 0.9)
+TRACK_BORDER = scale_image(pygame.image.load('./images/track-border.png'), 0.9)
 TRACK_BORDER_MASK = pygame.mask.from_surface(TRACK_BORDER)
-FINISH = pygame.image.load('code/images/finish.png')
+FINISH = pygame.image.load('./images/finish.png')
 FINISH_MASK = pygame.mask.from_surface(FINISH)
 FINISH_POSITION = (130, 250)
-RED_CAR = scale_image(pygame.image.load('code/images/red-car.png'),  0.55)
-GREEN_CAR = scale_image(pygame.image.load('code/images/green-car.png'), 0.55)
+RED_CAR = scale_image(pygame.image.load('./images/red-car.png'),  0.55)
+GREEN_CAR = scale_image(pygame.image.load('./images/green-car.png'), 0.55)
 
 WIDTH, HEIGHT = TRACK.get_width(), TRACK.get_height()
-WIN = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Racing Game!")
 
-pygame.font.init()
 MAIN_FONT = pygame.font.SysFont("comicsans", 44)
 LAP_FONT = pygame.font.SysFont("comicsans", 20)
 COUNTDOWN_FONT = pygame.font.SysFont("comicsans", 120)
@@ -191,7 +191,7 @@ def draw_stepper(win, label, value, value_fmt, rect, minus_rect, plus_rect):
     value_text = MAIN_FONT.render(value_fmt.format(value), True, (255, 255, 255))
     win.blit(value_text, (rect.centerx - value_text.get_width() // 2, rect.centery - value_text.get_height() // 2))
 
-def settings_screen(win, images, player_speed, bounce_factor):
+async def settings_screen(win, images, player_speed, bounce_factor):
     title_text = MAIN_FONT.render("Settings", True, (255, 255, 255))
 
     overlay = pygame.Surface((WIDTH, HEIGHT))
@@ -250,9 +250,10 @@ def settings_screen(win, images, player_speed, bounce_factor):
                     bounce_factor = min(bounce_max, round(bounce_factor + bounce_step, 1))
                 elif back_rect.collidepoint(event.pos):
                     waiting = False
+        await asyncio.sleep(0)
     return player_speed, bounce_factor 
 
-def level_select_screen(win, images, player_speed, bounce_factor):
+async def level_select_screen(win, images, player_speed, bounce_factor):
     title_text = MAIN_FONT.render("Select Difficulty", True, (255, 255, 255))
     hint_font = pygame.font.SysFont("comicsans", 24)
     hint_text = hint_font.render('Use WASD or Arrow Keys to drive', True, (200, 200, 200))
@@ -303,13 +304,14 @@ def level_select_screen(win, images, player_speed, bounce_factor):
                 quit()
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if settings_rect.collidepoint(event.pos):
-                    player_speed, bounce_factor = settings_screen(win, images, player_speed, bounce_factor)
+                    player_speed, bounce_factor = await settings_screen(win, images, player_speed, bounce_factor)
                 else:
                     for label, speed, rect, noclip, base_color, hover_color in levels:
                         if rect.collidepoint(event.pos):
                             return speed, player_speed, bounce_factor, noclip
+        await asyncio.sleep(0)
 
-def countdown_screen(win, images, player_car, computer_car):
+async def countdown_screen(win, images, player_car, computer_car):
     numbers = ["3", "2", "1", "GO!"]
     clock = pygame.time.Clock()
 
@@ -335,8 +337,9 @@ def countdown_screen(win, images, player_car, computer_car):
 
             win.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - text.get_height() // 2))
             pygame.display.update()
+            await asyncio.sleep(0)
 
-def end_screen(win, images, won):
+async def end_screen(win, images, won):
     message = "You Win!" if won else "Too Slow!"
     result_text = MAIN_FONT.render(message, True, (255, 255, 255))
 
@@ -440,47 +443,56 @@ def handle_collision(player_car, computer_car, noclip = False):
             if player_car.laps >= TOTAL_LAPS:
                 return "win"
 
-run = True
-clock = pygame.time.Clock()
-images = [(GRASS, (0, 0)), (TRACK, (0,0)), (FINISH, FINISH_POSITION), (TRACK_BORDER, (0, 0))]
-player_car = PlayerCar(4, 4)
-player_speed = 4.0
-bounce_factor = 1.0
-# path up 
+async def main():
+    WIN = pygame.display.set_mode((WIDTH, HEIGHT))
+    pygame.display.set_caption("Racing Game!")
 
-while run:
-    computer_speed, player_speed, bounce_factor, noclip = level_select_screen(WIN, images, player_speed, bounce_factor)
-    player_car = PlayerCar(player_speed, 4)
-    player_car.bounce_factor = bounce_factor
-    computer_car = ComputerCar(computer_speed, 4, PATH)
 
-    countdown_screen(WIN, images, player_car, computer_car)
-    computer_car.start()
-    player_car.lap_start_time = pygame.time.get_ticks()
+    
 
-    playing = True
+    run = True
+    clock = pygame.time.Clock()
+    images = [(GRASS, (0, 0)), (TRACK, (0,0)), (FINISH, FINISH_POSITION), (TRACK_BORDER, (0, 0))]
+    player_car = PlayerCar(4, 4)
+    player_speed = 4.0
+    bounce_factor = 1.0
+    # path up 
+        
+    while run:
+        computer_speed, player_speed, bounce_factor, noclip = await level_select_screen(WIN, images, player_speed, bounce_factor)
+        player_car = PlayerCar(player_speed, 4)
+        player_car.bounce_factor = bounce_factor
+        computer_car = ComputerCar(computer_speed, 4, PATH)
 
-    while playing:
-        clock.tick(FPS)
+        await countdown_screen(WIN, images, player_car, computer_car)
+        computer_car.start()
+        player_car.lap_start_time = pygame.time.get_ticks()
 
-        draw(WIN, images, player_car, computer_car)
+        playing = True
 
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                run = False
-                playing = False
+        while playing:
+            clock.tick(FPS)
+
+            draw(WIN, images, player_car, computer_car)
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    run = False
+                    playing = False
+                    break
+
+            if not run:
                 break
 
-        if not run:
-            break
+            move_player(player_car)
+            computer_car.move()
+            result = handle_collision(player_car, computer_car, noclip)
 
-        move_player(player_car)
-        computer_car.move()
-        result = handle_collision(player_car, computer_car, noclip)
+            if result is not None: 
+                await end_screen(WIN, images, won=(result == 'win'))
+                playing = False
 
-        if result is not None: 
-            end_screen(WIN, images, won=(result == 'win'))
-            playing = False
+            await asyncio.sleep(0)
 
 # print(computer_car.path)
-pygame.quit()
+asyncio.run(main())
