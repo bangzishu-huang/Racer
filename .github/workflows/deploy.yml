@@ -1,42 +1,35 @@
-name: Deploy pygbag build to GitHub Pages
+name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: ["main"]
-  workflow_dispatch:
+    branches:
+      - main 
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: "pages"
-  cancel-in-progress: true
+  contents: write
 
 jobs:
   build-and-deploy:
+    concurrency: ci-${{ github.ref }}
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
+      - name: Checkout Code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
+      - name: Install Python and Pygbag
+        run: |
+          python -m pip install --upgrade pip
+          pip install pygbag
 
-      - name: Install pygbag
-        run: pip install pygbag
+      - name: Build Web Version
 
-      - name: Build with pygbag
-        run: python -m pygbag --build code
-
-      - name: Upload build artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: code/build/web
+        working-directory: ./code
+        run: |
+          python -m pygbag --build --disable-sound-format-error .
 
       - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+
+          folder: code/build/web
+          branch: gh-pages
