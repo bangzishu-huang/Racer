@@ -367,6 +367,7 @@ async def end_screen(win, images, won):
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if button_rect.collidepoint(event.pos):
                     waiting = False
+        await asyncio.sleep(0)
 
 def draw(win, images, player_car, computer_car):
     for img, pos in images:
