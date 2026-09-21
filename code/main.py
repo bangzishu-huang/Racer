@@ -84,7 +84,7 @@ class PlayerCar(AbstractCar):
         self.move()
 
     def bounce(self):
-        self.vel = -self.vel
+        self.vel = max(-self.max_vel, min(self.max_vel, -self.vel * self.bounce_factor))
         self.move()
 
 class ComputerCar(AbstractCar):
@@ -419,6 +419,27 @@ def move_player(player_car):
     if not moved: player_car.reduce_speed()
 
 def handle_collision(player_car, computer_car, noclip = False):
+    car_half_w = player_car.IMG.get_width() // 2
+    car_half_h = player_car.IMG.get_height() // 2
+
+    hit_edge = False
+    if player_car.x < car_half_w:
+        player_car.x = car_half_w
+        hit_edge = True 
+    elif player_car.x > WIDTH - car_half_w:
+        player_car.x = WIDTH - car_half_w
+        hit_edge = True
+
+    if player_car.y < car_half_h:
+        player_car.y = HEIGHT - car_half_h
+        hit_edge = True
+    elif player_car.y > HEIGHT - car_half_h:
+        player_car.y = HEIGHT - car_half_h
+        hit_edge = True
+
+    if hit_edge:
+        player_car.bounce()
+
     if not noclip and player_car.collide(TRACK_BORDER_MASK) != None:
         player_car.bounce()
 
